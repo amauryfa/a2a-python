@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 from typing import Any
 from unittest.mock import (
@@ -203,7 +204,11 @@ async def test_dequeue_event_closed_and_empty_no_wait(
     await event_queue.close()
     assert event_queue.is_closed()
     # Ensure queue is actually empty (e.g. by trying a non-blocking get on internal queue)
-    with pytest.raises(asyncio.QueueEmpty):
+    if sys.version_info < (3, 13):
+        expected = asyncio.QueueEmpty
+    else:
+        expected = asyncio.QueueShutDown
+    with pytest.raises(expected):
         event_queue.queue.get_nowait()
 
     with pytest.raises(asyncio.QueueEmpty, match='Queue is closed.'):
@@ -217,9 +222,11 @@ async def test_dequeue_event_closed_and_empty_waits_then_raises(
     """Test dequeue_event raises QueueEmpty eventually when closed, empty, and no_wait=False."""
     await event_queue.close()
     assert event_queue.is_closed()
-    with pytest.raises(
-        asyncio.QueueEmpty
-    ):  # Should still raise QueueEmpty as per current implementation
+    if sys.version_info < (3, 13):
+        expected = asyncio.QueueEmpty
+    else:
+        expected = asyncio.QueueShutDown
+    with pytest.raises(expected):
         event_queue.queue.get_nowait()  # verify internal queue is empty
 
     # This test is tricky because await event_queue.dequeue_event() would hang if not for the close check.
